@@ -1,0 +1,56 @@
+name: unimatex
+description: "UniMateX - Your academic companion for attendance, timetable, assignments and notes"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.3.0
+  lucide_icons: ^0.257.0
+  intl: ^0.20.2
+  percent_indicator: ^4.2.5
+
+  # Firebase
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.4
+  cloud_firestore: ^5.6.0
+  firebase_messaging: ^15.1.6
+  firebase_remote_config: ^5.1.2
+  google_sign_in: ^6.2.1
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+
+  # Local Cache
+  hive_flutter: ^1.1.0
+
+  # Navigation
+  go_router: ^14.8.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.1
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.jpeg"
+
+flutter_native_splash:
+  color: "#ffffff"
+  image: "assets/images/logo.jpeg"
+  android: true
+  ios: true
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
