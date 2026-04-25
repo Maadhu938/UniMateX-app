@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,9 +22,29 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
+  final authRefresh = GoRouterRefreshStream(FirebaseAuth.instance.authStateChanges());
+
+  ref.onDispose(authRefresh.dispose);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/',
+    initialLocation: FirebaseAuth.instance.currentUser == null ? '/login' : '/home',
+    refreshListenable: authRefresh,
+    redirect: (context, state) {
+      final isLoggedIn = FirebaseAuth.instance.currentUser != null;
+      final location = state.uri.path;
+      final isAuthRoute = location == '/' || location == '/login' || location == '/register';
+
+      if (!isLoggedIn && !isAuthRoute) {
+        return '/login';
+      }
+
+      if (isLoggedIn && isAuthRoute) {
+        return '/home';
+      }
+
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/',
@@ -82,6 +105,22 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    _subscription = stream.asBroadcastStream().listen((_) {
+      notifyListeners();
+    });
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
 
 class _MainShell extends ConsumerStatefulWidget {
   final int selectedIndex;

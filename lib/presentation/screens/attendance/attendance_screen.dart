@@ -92,7 +92,31 @@ class AttendanceScreen extends ConsumerWidget {
   }
 
   Widget _buildOverallCard(double overallPct) {
-    final pct = (overallPct * 100).round();
+    final normalizedPct = overallPct.clamp(0.0, 1.0);
+    final pct = (normalizedPct * 100).round();
+    final safeValue = normalizedPct >= 1.0 ? 0.999 : normalizedPct;
+
+    final Color statusColor;
+    final Color statusBg;
+    final IconData statusIcon;
+    final String zoneLabel;
+
+    if (normalizedPct < 0.75) {
+      statusColor = AppColors.danger;
+      statusBg = AppColors.red50;
+      statusIcon = LucideIcons.trendingDown;
+      zoneLabel = 'Danger Zone';
+    } else if (normalizedPct < 0.85) {
+      statusColor = AppColors.amber600;
+      statusBg = AppColors.amber50;
+      statusIcon = LucideIcons.activity;
+      zoneLabel = 'Warning Zone';
+    } else {
+      statusColor = AppColors.success;
+      statusBg = AppColors.green50;
+      statusIcon = LucideIcons.trendingUp;
+      zoneLabel = 'Safe Zone';
+    }
     
     return Container(
       padding: const EdgeInsets.all(32),
@@ -126,11 +150,11 @@ class AttendanceScreen extends ConsumerWidget {
                 SizedBox(
                   width: 160, height: 160,
                   child: CircularProgressIndicator(
-                    value: overallPct.clamp(0.0, 1.0),
+                    value: safeValue,
                     strokeWidth: 16,
                     backgroundColor: Colors.transparent,
                     strokeCap: StrokeCap.round,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
+                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                   ),
                 ),
                 Column(
@@ -148,16 +172,16 @@ class AttendanceScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.green50, AppColors.emerald50]),
+              color: statusBg,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.success.withOpacity(0.2)),
+              border: Border.all(color: statusColor.withOpacity(0.2)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(LucideIcons.trendingUp, color: AppColors.success, size: 16),
+                Icon(statusIcon, color: statusColor, size: 16),
                 const SizedBox(width: 8),
-                const Text("Safe Zone", style: TextStyle(color: AppColors.success, fontSize: 14, fontWeight: FontWeight.w500)),
+                Text(zoneLabel, style: TextStyle(color: statusColor, fontSize: 14, fontWeight: FontWeight.w500)),
               ],
             ),
           )

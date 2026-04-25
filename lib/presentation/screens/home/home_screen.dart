@@ -20,6 +20,8 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final userName = ref.watch(userDisplayNameProvider).valueOrNull ?? 'Student';
     final overallAttendance = ref.watch(overallAttendanceProvider);
+    final attendanceData = ref.watch(attendanceStreamProvider).valueOrNull ?? [];
+    final hasAttendanceData = attendanceData.any((a) => a.totalClasses > 0);
     final todayClasses = ref.watch(todayClassesProvider);
     final authState = ref.watch(authStateProvider);
     final assignments = ref.watch(assignmentStreamProvider).valueOrNull ?? [];
@@ -61,7 +63,7 @@ class HomeScreen extends ConsumerWidget {
             _buildHeader(context, ref, userName),
             const SizedBox(height: 20),
             _buildSmartWarnings(context, ref),
-            _buildAttendanceCard(context, overallAttendance),
+            _buildAttendanceCard(context, overallAttendance, hasAttendanceData),
             const SizedBox(height: 20),
             _buildTodayClasses(context, todayClasses),
             const SizedBox(height: 20),
@@ -283,8 +285,42 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAttendanceCard(BuildContext context, double attendancePct) {
-    final pct = (attendancePct * 100).round();
+  Widget _buildAttendanceCard(BuildContext context, double attendancePct, bool hasAttendanceData) {
+    final normalizedPct = attendancePct.clamp(0.0, 1.0);
+    final pct = (normalizedPct * 100).round();
+    final safeValue = normalizedPct >= 1.0 ? 0.999 : normalizedPct;
+
+    final Color statusColor;
+    final Color statusBg;
+    final IconData trendIcon;
+    final String zoneLabel;
+    final String zoneMessage;
+
+    if (!hasAttendanceData) {
+      statusColor = AppColors.primary;
+      statusBg = AppColors.primary.withOpacity(0.1);
+      trendIcon = LucideIcons.info;
+      zoneLabel = 'No Data Yet';
+      zoneMessage = 'Add attendance records to see your zone.';
+    } else if (normalizedPct < 0.75) {
+      statusColor = AppColors.danger;
+      statusBg = AppColors.red50;
+      trendIcon = LucideIcons.trendingDown;
+      zoneLabel = 'Danger Zone';
+      zoneMessage = 'Immediate attention needed.';
+    } else if (normalizedPct < 0.85) {
+      statusColor = AppColors.amber600;
+      statusBg = AppColors.amber50;
+      trendIcon = LucideIcons.activity;
+      zoneLabel = 'Warning Zone';
+      zoneMessage = 'Try to attend upcoming classes.';
+    } else {
+      statusColor = AppColors.success;
+      statusBg = AppColors.success.withOpacity(0.1);
+      trendIcon = LucideIcons.trendingUp;
+      zoneLabel = 'Safe Zone';
+      zoneMessage = 'Keep up the good work!';
+    }
     
     return GestureDetector(
       onTap: () => context.go('/attendance'),
@@ -317,64 +353,101 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 Container(
                   width: 40, height: 40,
-                  decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), shape: BoxShape.circle),
-                  child: const Center(child: Icon(LucideIcons.trendingUp, color: AppColors.success, size: 20)),
+                  decoration: BoxDecoration(color: statusBg, shape: BoxShape.circle),
+                  child: Center(child: Icon(trendIcon, color: statusColor, size: 20)),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-            Row(
-              children: [
-                SizedBox(
-                  width: 112, height: 112,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        value: 1.0,
-                        strokeWidth: 12,
-                        color: Colors.grey.shade100,
-                      ),
-                      CircularProgressIndicator(
-                        value: attendancePct.clamp(0.0, 1.0),
-                        strokeWidth: 12,
-                        backgroundColor: Colors.transparent,
-                        strokeCap: StrokeCap.round,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
-                      ),
-                      Text("$pct%", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: AppColors.textMain)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8, height: 8,
-                              decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 340;
+                final ringSize = isCompact ? 96.0 : 112.0;
+                final ringStroke = isCompact ? 9.0 : 10.0;
+                final ringTextSize = isCompact ? 19.0 : 22.0;
+                final rowGap = isCompact ? 12.0 : 24.0;
+
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: ringSize,
+                      height: ringSize,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CustomPaint(
+                            size: Size.square(ringSize),
+                            painter: _AttendanceRingPainter(
+                              progress: safeValue,
+                              trackColor: Colors.grey.shade100,
+                              progressColor: statusColor,
+                              strokeWidth: ringStroke,
                             ),
-                            const SizedBox(width: 8),
-                            const Text("Safe Zone", style: TextStyle(color: AppColors.success, fontSize: 14, fontWeight: FontWeight.w500)),
-                          ],
-                        ),
+                          ),
+                          Text(
+                            "$pct%",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: ringTextSize,
+                              fontWeight: FontWeight.w700,
+                              height: 1,
+                              color: AppColors.textMain,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      const Text("Keep up the good work!", style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                    SizedBox(width: rowGap),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isCompact ? 12 : 14,
+                              vertical: isCompact ? 6 : 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusBg,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                                ),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    zoneLabel,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontSize: isCompact ? 13 : 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            zoneMessage,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             )
           ],
         ),
@@ -638,6 +711,56 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+class _AttendanceRingPainter extends CustomPainter {
+  final double progress;
+  final Color trackColor;
+  final Color progressColor;
+  final double strokeWidth;
+
+  const _AttendanceRingPainter({
+    required this.progress,
+    required this.trackColor,
+    required this.progressColor,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    final progressPaint = Paint()
+      ..color = progressColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(center, radius, trackPaint);
+
+    final clampedProgress = progress.clamp(0.0, 0.999);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -pi / 2,
+      2 * pi * clampedProgress,
+      false,
+      progressPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _AttendanceRingPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.trackColor != trackColor ||
+        oldDelegate.progressColor != progressColor ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }
 
