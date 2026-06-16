@@ -6,22 +6,27 @@ import '../../../core/app_colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../widgets/wave_painter.dart';
 
-class LoginScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/cloud_sync_service.dart';
+import '../../providers/auth_provider.dart';
+
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+
+  AuthService get _authService => ref.read(authServiceProvider);
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -29,6 +34,8 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await _authService.signInWithEmail(email: _emailController.text, password: _passwordController.text);
       if (mounted) {
+        // Run cloud restore in the background so UI isn't fully blocked
+        ref.read(cloudSyncServiceProvider).restoreData();
         context.go('/home');
       }
     } catch (e) {
@@ -43,6 +50,8 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await _authService.signInWithGoogle();
       if (mounted) {
+        // Run cloud restore in the background so UI isn't fully blocked
+        ref.read(cloudSyncServiceProvider).restoreData();
         context.go('/home');
       }
     } catch (e) {
@@ -50,6 +59,72 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _handleForgotPassword() {
+    final forgotEmailController = TextEditingController(text: _emailController.text);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Reset Password", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Enter your email address and we'll send you a link to reset your password.",
+              style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 14),
+            ),
+            const SizedBox(height: 20),
+            _buildTextField(
+              controller: forgotEmailController,
+              hint: "Email address",
+              icon: LucideIcons.mail,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel", style: GoogleFonts.inter(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = forgotEmailController.text.trim();
+              if (email.isEmpty) return;
+              
+              Navigator.pop(context);
+              try {
+                await _authService.resetPassword(email);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Password reset email sent! Check your inbox."),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(e.toString()),
+                      backgroundColor: AppColors.danger,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Send Link", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -102,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {}, // Handle forgot password
+                    onPressed: _handleForgotPassword,
                     child: Text("Forgot Password?", style: GoogleFonts.inter(color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
                 ),
@@ -194,7 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildPrimaryButton({required String text, required VoidCallback onPressed, bool isLoading = false, String? loadingText}) {
+  Widget _buildPrimaryButton({required String text, required VoidCallback onPressed, bool isLoading = false}) {
     return SizedBox(
       width: double.infinity,
       height: 56,
@@ -207,7 +282,7 @@ class _LoginScreenState extends State<LoginScreen> {
           elevation: 0,
         ),
         child: isLoading
-            ? SizedBox(
+            ? const SizedBox(
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
@@ -232,7 +307,11 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.network("https://www.gstatic.com/images/branding/googleg/1x/googleg_standard_color_128dp.png", height: 24),
+            Image.network(
+              "https://www.gstatic.com/images/branding/googleg/1x/googleg_standard_color_128dp.png",
+              height: 24,
+              errorBuilder: (_, __, ___) => const Text('G', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(0xff4285F4))),
+            ),
             const SizedBox(width: 12),
             Text("Continue with Google", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textMain)),
           ],

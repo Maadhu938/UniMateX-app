@@ -6,32 +6,34 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/app_colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../widgets/wave_painter.dart';
-import 'policy_screen.dart';
 
-class RegisterScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/cloud_sync_service.dart';
+import '../../providers/auth_provider.dart';
+
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
-  final _authService = AuthService();
+
+  AuthService get _authService => ref.read(authServiceProvider);
 
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
-  bool _agreeToTerms = true;
   String? _errorMessage;
 
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
-    if (!_agreeToTerms) return;
 
     setState(() { _isLoading = true; _errorMessage = null; });
     try {
@@ -42,6 +44,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await _saveUserProfile(credential.user?.uid);
 
       if (mounted) {
+        ref.read(cloudSyncServiceProvider).restoreData();
         context.go('/home');
       }
     } catch (e) {
@@ -136,40 +139,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _agreeToTerms,
-                      onChanged: (val) => setState(() => _agreeToTerms = val!),
-                      activeColor: AppColors.blue600,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    ),
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          text: "I agree to the ",
-                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
-                          children: [
-                            WidgetSpan(
-                              child: GestureDetector(
-                                onTap: () => context.push('/policy', extra: {'title': 'Terms & Conditions', 'content': PolicyScreen.dummyTC}),
-                                child: Text("Terms & Conditions", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12)),
-                              ),
-                            ),
-                            const TextSpan(text: " and "),
-                            WidgetSpan(
-                              child: GestureDetector(
-                                onTap: () => context.push('/policy', extra: {'title': 'Privacy Policy', 'content': PolicyScreen.dummyPrivacy}),
-                                child: Text("Privacy Policy", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 16),

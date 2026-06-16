@@ -63,10 +63,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) {
           final location = state.uri.path;
           int index = 0;
-          if (location.startsWith('/attendance')) index = 1;
-          else if (location.startsWith('/timetable')) index = 2;
-          else if (location.startsWith('/assignments')) index = 3;
-          else if (location.startsWith('/notes')) index = 4;
+          if (location.startsWith('/attendance')) {
+            index = 1;
+          } else if (location.startsWith('/timetable')) {
+            index = 2;
+          } else if (location.startsWith('/assignments')) {
+            index = 3;
+          } else if (location.startsWith('/notes')) {
+            index = 4;
+          }
           return _MainShell(selectedIndex: index, child: child);
         },
         routes: [
@@ -133,33 +138,8 @@ class _MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<_MainShell> {
-  late PageController _pageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController(initialPage: widget.selectedIndex);
-  }
-
-  @override
-  void didUpdateWidget(_MainShell oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedIndex != widget.selectedIndex) {
-      final currentPage = _pageController.hasClients
-          ? (_pageController.page?.round() ?? _pageController.initialPage)
-          : _pageController.initialPage;
-
-      if (currentPage != widget.selectedIndex) {
-        _pageController.jumpToPage(widget.selectedIndex);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
+  late final PageController _pageController;
+  late int _index;
 
   final List<(String, String, IconData)> _tabs = [
     ('/home', 'Home', LucideIcons.home),
@@ -170,27 +150,57 @@ class _MainShellState extends ConsumerState<_MainShell> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _index = widget.selectedIndex;
+    _pageController = PageController(initialPage: _index);
+  }
+
+  @override
+  void didUpdateWidget(_MainShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedIndex != _index) {
+      _index = widget.selectedIndex;
+      if (_pageController.hasClients) _pageController.jumpToPage(_index);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onTabTapped(int index) {
+    if (index == _index) return;
+    setState(() => _index = index);
+    _pageController.jumpToPage(index);
+    // Tap is discrete (instant jump) so syncing the route here is smooth and
+    // keeps go_router/back-stack consistent. Swipes intentionally skip this.
+    context.go(_tabs[index].$1);
+  }
+
+  void _onPageChanged(int index) {
+    if (index == _index) return;
+    setState(() => _index = index);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: false,
       body: PageView(
         controller: _pageController,
-        onPageChanged: (index) {
-          final targetPath = _tabs[index].$1;
-          final currentPath = GoRouterState.of(context).uri.path;
-          if (currentPath != targetPath) {
-            context.go(targetPath);
-          }
-        },
+        onPageChanged: _onPageChanged,
         children: const [
-          HomeScreen(),
-          AttendanceScreen(),
-          TimetableScreen(),
-          AssignmentsScreen(),
-          NotesScreen(),
+          _KeepAlivePage(child: HomeScreen()),
+          _KeepAlivePage(child: AttendanceScreen()),
+          _KeepAlivePage(child: TimetableScreen()),
+          _KeepAlivePage(child: AssignmentsScreen()),
+          _KeepAlivePage(child: NotesScreen()),
         ],
       ),
-      floatingActionButton: widget.selectedIndex == 0 ? FloatingActionButton(
+      floatingActionButton: _index == 0 ? FloatingActionButton(
         onPressed: () => context.push('/add'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -218,11 +228,11 @@ class _MainShellState extends ConsumerState<_MainShell> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: List.generate(_tabs.length, (index) {
-            final isSelected = widget.selectedIndex == index;
+            final isSelected = _index == index;
             final tab = _tabs[index];
             return Expanded(
               child: GestureDetector(
-                onTap: () => context.go(tab.$1),
+                onTap: () => _onTabTapped(index),
                 behavior: HitTestBehavior.opaque,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -260,5 +270,27 @@ class _MainShellState extends ConsumerState<_MainShell> {
         ),
       ),
     );
+  }
+}
+
+/// Keeps a tab's screen (and its state/data) alive when it scrolls off-screen
+/// in the PageView, so switching tabs doesn't rebuild or re-fetch.
+class _KeepAlivePage extends StatefulWidget {
+  final Widget child;
+  const _KeepAlivePage({required this.child});
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return RepaintBoundary(child: widget.child);
   }
 }

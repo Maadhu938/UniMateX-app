@@ -1,8 +1,7 @@
-import 'dart:math';
+import 'dart:math' show pi;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/app_colors.dart';
 import '../../../domain/models/timetable_model.dart';
@@ -10,8 +9,7 @@ import '../../providers/attendance_provider.dart';
 import '../../providers/timetable_provider.dart';
 import '../../providers/assignment_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/quick_add_dialogs.dart';
-import '../../widgets/empty_state.dart';
+import '../../../core/constants/app_strings.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -22,55 +20,60 @@ class HomeScreen extends ConsumerWidget {
     final overallAttendance = ref.watch(overallAttendanceProvider);
     final attendanceData = ref.watch(attendanceStreamProvider).valueOrNull ?? [];
     final hasAttendanceData = attendanceData.any((a) => a.totalClasses > 0);
+    final totalOverall = attendanceData.fold<int>(0, (sum, item) => sum + item.totalClasses);
+    final weightedTargetSum = attendanceData.fold<double>(
+      0,
+      (sum, item) => sum + (item.targetPercentage * item.totalClasses),
+    );
+    final overallTarget = totalOverall > 0
+        ? weightedTargetSum / totalOverall
+        : (attendanceData.isNotEmpty
+            ? attendanceData.fold<double>(0, (sum, item) => sum + item.targetPercentage) /
+                attendanceData.length
+            : 0.75);
     final todayClasses = ref.watch(todayClassesProvider);
-    final authState = ref.watch(authStateProvider);
     final assignments = ref.watch(assignmentStreamProvider).valueOrNull ?? [];
     
     final pendingCount = assignments.where((a) => a.isPending).length;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     
-    final overdueCount = assignments.where((a) {
-      if (!a.isPending || a.dueDate == null) return false;
-      final due = DateTime(a.dueDate!.year, a.dueDate!.month, a.dueDate!.day);
-      return due.isBefore(today);
-    }).length;
-
     final dueTodayCount = assignments.where((a) {
-      if (!a.isPending || a.dueDate == null) return false;
-      final due = DateTime(a.dueDate!.year, a.dueDate!.month, a.dueDate!.day);
+      if (!a.isPending) return false;
+      final due = DateTime(a.dueDate.year, a.dueDate.month, a.dueDate.day);
       return due.isAtSameMomentAs(today);
     }).length;
 
     final thisWeekCount = assignments.where((a) {
-      if (!a.isPending || a.dueDate == null) return false;
-      final due = DateTime(a.dueDate!.year, a.dueDate!.month, a.dueDate!.day);
+      if (!a.isPending) return false;
+      final due = DateTime(a.dueDate.year, a.dueDate.month, a.dueDate.day);
       final diff = due.difference(today).inDays;
       return diff > 0 && diff <= 7;
     }).length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: 0,
-      ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
           children: [
-            _buildHeader(context, ref, userName),
-            const SizedBox(height: 20),
-            _buildSmartWarnings(context, ref),
-            _buildAttendanceCard(context, overallAttendance, hasAttendanceData),
-            const SizedBox(height: 20),
-            _buildTodayClasses(context, todayClasses),
-            const SizedBox(height: 20),
-            _buildAssignmentsCard(context, pendingCount, dueTodayCount, thisWeekCount),
-            const SizedBox(height: 20),
-            _buildQuickActions(context, ref),
-            const SizedBox(height: 100),
+            // Pinned header — stays fixed while the content below scrolls.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildHeader(context, ref, userName),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
+                children: [
+                  _buildSmartWarnings(context, ref),
+                  _buildAttendanceCard(context, overallAttendance, hasAttendanceData, overallTarget),
+                  const SizedBox(height: 20),
+                  _buildTodayClasses(context, ref, todayClasses),
+                  const SizedBox(height: 20),
+                  _buildAssignmentsCard(context, pendingCount, dueTodayCount, thisWeekCount),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -80,8 +83,11 @@ class HomeScreen extends ConsumerWidget {
     Widget _buildHeader(BuildContext context, WidgetRef ref, String name) {
       final hour = DateTime.now().hour;
       String greeting = "Good evening";
-      if (hour < 12) greeting = "Good morning";
-      else if (hour < 18) greeting = "Good afternoon";
+      if (hour < 12) {
+        greeting = "Good morning";
+      } else if (hour < 18) {
+        greeting = "Good afternoon";
+      }
 
       final firstName = name.split(' ').first;
       final user = ref.watch(authStateProvider).valueOrNull;
@@ -150,7 +156,8 @@ class HomeScreen extends ConsumerWidget {
 
     // Attendance Warnings
     for (var a in attendance) {
-      if (a.percentage < 0.75) {
+      final warningThreshold = (a.targetPercentage - 0.10).clamp(0.0, 1.0);
+      if (a.percentage < warningThreshold) {
         warnings.add(_buildWarningCard(
           icon: LucideIcons.alertCircle,
           color: AppColors.danger,
@@ -159,12 +166,12 @@ class HomeScreen extends ConsumerWidget {
           bgColor: AppColors.red50,
           borderColor: AppColors.red100,
         ));
-      } else if (a.percentage < 0.85) {
+      } else if (a.percentage < a.targetPercentage) {
         warnings.add(_buildWarningCard(
           icon: LucideIcons.alertTriangle,
           color: AppColors.amber600,
-          title: "Attendance Dropping",
-          message: "${a.subject} is at ${(a.percentage * 100).round()}% — don't skip the next class.",
+          title: AppStrings.attendanceDropping,
+          message: "${a.subject} is at ${(a.percentage * 100).round()}% — ${AppStrings.dontSkip}",
           bgColor: AppColors.amber50,
           borderColor: AppColors.amber100,
         ));
@@ -173,8 +180,8 @@ class HomeScreen extends ConsumerWidget {
 
     // Assignments Warnings
     for (var a in assignments) {
-      if (a.isPending && a.dueDate != null) {
-        final due = DateTime(a.dueDate!.year, a.dueDate!.month, a.dueDate!.day);
+      if (a.isPending) {
+        final due = DateTime(a.dueDate.year, a.dueDate.month, a.dueDate.day);
         final diff = due.difference(today).inDays;
         if (diff == 0) {
            warnings.add(_buildWarningCard(
@@ -236,16 +243,15 @@ class HomeScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        const Row(
           children: [
-            const Icon(LucideIcons.sparkles, color: AppColors.primary, size: 20),
-            const SizedBox(width: 8),
-            const Text("Smart Insights", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textMain)),
+            Icon(LucideIcons.sparkles, color: AppColors.primary, size: 20),
+            SizedBox(width: 8),
+            Text("Smart Insights", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textMain)),
           ],
         ),
         const SizedBox(height: 12),
-        ...displayWarnings.map((w) => Padding(padding: const EdgeInsets.only(bottom: 12), child: w)),
-        const SizedBox(height: 8),
+        ...displayWarnings.map((w) => Padding(padding: const EdgeInsets.only(bottom: 8), child: w)),
       ],
     );
   }
@@ -285,10 +291,16 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAttendanceCard(BuildContext context, double attendancePct, bool hasAttendanceData) {
+  Widget _buildAttendanceCard(
+    BuildContext context,
+    double attendancePct,
+    bool hasAttendanceData,
+    double targetPercentage,
+  ) {
     final normalizedPct = attendancePct.clamp(0.0, 1.0);
     final pct = (normalizedPct * 100).round();
     final safeValue = normalizedPct >= 1.0 ? 0.999 : normalizedPct;
+    final warningThreshold = (targetPercentage - 0.10).clamp(0.0, 1.0);
 
     final Color statusColor;
     final Color statusBg;
@@ -302,13 +314,13 @@ class HomeScreen extends ConsumerWidget {
       trendIcon = LucideIcons.info;
       zoneLabel = 'No Data Yet';
       zoneMessage = 'Add attendance records to see your zone.';
-    } else if (normalizedPct < 0.75) {
+    } else if (normalizedPct < warningThreshold) {
       statusColor = AppColors.danger;
       statusBg = AppColors.red50;
       trendIcon = LucideIcons.trendingDown;
       zoneLabel = 'Danger Zone';
       zoneMessage = 'Immediate attention needed.';
-    } else if (normalizedPct < 0.85) {
+    } else if (normalizedPct < targetPercentage) {
       statusColor = AppColors.amber600;
       statusBg = AppColors.amber50;
       trendIcon = LucideIcons.activity;
@@ -318,8 +330,8 @@ class HomeScreen extends ConsumerWidget {
       statusColor = AppColors.success;
       statusBg = AppColors.success.withOpacity(0.1);
       trendIcon = LucideIcons.trendingUp;
-      zoneLabel = 'Safe Zone';
-      zoneMessage = 'Keep up the good work!';
+      zoneLabel = AppStrings.safe;
+      zoneMessage = AppStrings.onTrack;
     }
     
     return GestureDetector(
@@ -343,12 +355,12 @@ class HomeScreen extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
+                const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Overall Attendance", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textMain)),
-                    const SizedBox(height: 2),
-                    const Text("Across all subjects", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    Text("Overall Attendance", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textMain)),
+                    SizedBox(height: 2),
+                    Text("Across all subjects", style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                   ],
                 ),
                 Container(
@@ -362,9 +374,9 @@ class HomeScreen extends ConsumerWidget {
             LayoutBuilder(
               builder: (context, constraints) {
                 final isCompact = constraints.maxWidth < 340;
-                final ringSize = isCompact ? 96.0 : 112.0;
-                final ringStroke = isCompact ? 9.0 : 10.0;
-                final ringTextSize = isCompact ? 19.0 : 22.0;
+                final ringSize = isCompact ? 110.0 : 126.0;
+                final ringStroke = isCompact ? 10.0 : 11.0;
+                final ringTextSize = isCompact ? 20.0 : 24.0;
                 final rowGap = isCompact ? 12.0 : 24.0;
 
                 return Row(
@@ -408,7 +420,7 @@ class HomeScreen extends ConsumerWidget {
                               vertical: isCompact ? 6 : 7,
                             ),
                             decoration: BoxDecoration(
-                              color: statusBg,
+                              color: zoneLabel == 'Danger Zone' ? AppColors.danger : statusBg,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
@@ -417,7 +429,10 @@ class HomeScreen extends ConsumerWidget {
                                 Container(
                                   width: 8,
                                   height: 8,
-                                  decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                                  decoration: BoxDecoration(
+                                    color: zoneLabel == 'Danger Zone' ? Colors.white : statusColor,
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
                                 Flexible(
@@ -426,7 +441,7 @@ class HomeScreen extends ConsumerWidget {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: statusColor,
+                                      color: zoneLabel == 'Danger Zone' ? Colors.white : statusColor,
                                       fontSize: isCompact ? 13 : 14,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -455,7 +470,29 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTodayClasses(BuildContext context, List<TimetableModel> classes) {
+  Widget _buildTodayClasses(BuildContext context, WidgetRef ref, List<TimetableModel> classes) {
+    final now = DateTime.now();
+    final nowMinutes = now.hour * 60 + now.minute;
+
+    // Find the ongoing class, or the next upcoming one if none is in progress.
+    int? ongoingIndex;
+    int? nextIndex;
+    for (var i = 0; i < classes.length; i++) {
+      final c = classes[i];
+      if (nowMinutes >= c.startMinutes && nowMinutes < c.endMinutes) {
+        ongoingIndex = i;
+        break;
+      }
+    }
+    if (ongoingIndex == null) {
+      for (var i = 0; i < classes.length; i++) {
+        if (classes[i].startMinutes > nowMinutes) {
+          nextIndex = i;
+          break;
+        }
+      }
+    }
+
     return GestureDetector(
       onTap: () => context.go('/timetable'),
       child: Container(
@@ -485,12 +522,12 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             if (classes.isEmpty)
                const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
+                padding: EdgeInsets.symmetric(vertical: 10),
                 child: Center(
                   child: Column(
                     children: [
-                      Icon(LucideIcons.coffee, color: AppColors.textTertiary, size: 32),
-                      SizedBox(height: 12),
+                      Icon(LucideIcons.coffee, color: AppColors.textTertiary, size: 24),
+                      SizedBox(height: 8),
                       Text("No classes today! Relax ☕", style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
                     ],
                   ),
@@ -498,31 +535,41 @@ class HomeScreen extends ConsumerWidget {
               )
             else
               Column(
-                children: classes.map((cls) {
-                  final parts = cls.timeString.split(' ');
-                  final timePart = parts.isNotEmpty ? parts[0] : '';
-                  final ampmPart = parts.length > 1 ? parts[1] : '';
+                children: classes.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final cls = entry.value;
+                  final isLast = index == classes.length - 1;
+                  final isOngoing = index == ongoingIndex;
+                  final isNext = index == nextIndex;
+                  final isDone = nowMinutes >= cls.endMinutes;
 
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
+                    margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Colors.grey.shade50, Colors.white],
+                        colors: isOngoing
+                            ? [AppColors.primary.withOpacity(0.08), AppColors.primary.withOpacity(0.02)]
+                            : [Colors.grey.shade50, Colors.white],
                       ),
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.grey.shade100, width: 1),
+                      border: Border.all(
+                        color: isOngoing ? AppColors.primary.withOpacity(0.4) : Colors.grey.shade100,
+                        width: isOngoing ? 1.5 : 1,
+                      ),
                     ),
                     child: Row(
                       children: [
                         SizedBox(
-                          width: 64,
+                          width: 70,
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(timePart, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textMain)),
-                              Text(ampmPart, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                              Text(_formatTime12(cls.startMinutes), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textMain)),
+                              const SizedBox(height: 2),
+                              Text(_formatTime12(cls.endMinutes), style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                             ],
                           ),
                         ),
@@ -540,12 +587,42 @@ class HomeScreen extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(cls.subject, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textMain), maxLines: 1, overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 2),
-                              Text(cls.room, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text(
+                                cls.subject,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDone ? AppColors.textSecondary : AppColors.textMain,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (cls.room.trim().isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    const Icon(LucideIcons.mapPin, size: 12, color: AppColors.textTertiary),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        cls.room,
+                                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),
+                        if (isOngoing)
+                          _statusPill('Now', AppColors.primary)
+                        else if (isNext)
+                          _statusPill('Next', AppColors.amber600)
+                        else if (isDone)
+                          const Icon(LucideIcons.check, size: 16, color: AppColors.textTertiary),
                       ],
                     ),
                   );
@@ -555,6 +632,29 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _statusPill(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+      ),
+    );
+  }
+
+  String _formatTime12(int minutes) {
+    final h24 = minutes ~/ 60;
+    final m = minutes % 60;
+    final period = h24 >= 12 ? 'PM' : 'AM';
+    var h12 = h24 % 12;
+    if (h12 == 0) h12 = 12;
+    return '$h12:${m.toString().padLeft(2, '0')} $period';
   }
 
   Widget _buildAssignmentsCard(BuildContext context, int pending, int dueToday, int thisWeek) {
@@ -596,7 +696,14 @@ class HomeScreen extends ConsumerWidget {
                 ] else ...[
                   Text("$pending", style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w600, color: AppColors.textMain)),
                   const SizedBox(width: 8),
-                  const Text("tasks this week", style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+                  const Flexible(
+                    child: Text(
+                      "tasks this week",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -607,7 +714,11 @@ class HomeScreen extends ConsumerWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.red50, Colors.white]),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [AppColors.red50, Colors.white],
+                      ),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: AppColors.red100),
                     ),
@@ -625,7 +736,11 @@ class HomeScreen extends ConsumerWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.amber50, Colors.white]),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [AppColors.amber50, Colors.white],
+                      ),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: AppColors.amber200),
                     ),
@@ -640,73 +755,6 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-   Widget _buildQuickActions(BuildContext context, WidgetRef ref) {
-     return Container(
-       padding: const EdgeInsets.all(20),
-       decoration: BoxDecoration(
-         color: Colors.white,
-         borderRadius: BorderRadius.circular(24),
-         border: Border.all(color: Colors.grey.shade100, width: 1),
-         boxShadow: [
-           BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2)),
-         ],
-       ),
-       child: Column(
-         crossAxisAlignment: CrossAxisAlignment.start,
-         children: [
-           const Text("Quick Actions", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textMain)),
-           const SizedBox(height: 16),
-           Row(
-             children: [
-               Expanded(
-                 flex: 1,
-                 child: _buildActionBtn(
-                   LucideIcons.plus, 
-                   "Add Class",
-                   () => QuickAddDialogs.showAddClassDialog(context, ref),
-                 ),
-               ),
-               const SizedBox(width: 12),
-               Expanded(
-                 flex: 1,
-                 child: _buildActionBtn(
-                   LucideIcons.plus, 
-                   "Add Task",
-                   () => QuickAddDialogs.showAddTaskDialog(context, ref),
-                 ),
-               ),
-             ],
-           ),
-         ],
-       ),
-     );
-   }
-
-  Widget _buildActionBtn(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.primary.withOpacity(0.05), AppColors.primary.withOpacity(0.1)]),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.primary.withOpacity(0.1)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle),
-              child: Center(child: Icon(icon, color: AppColors.primary, size: 20)),
-            ),
-            const SizedBox(height: 8),
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.primary)),
           ],
         ),
       ),

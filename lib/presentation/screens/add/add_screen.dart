@@ -61,59 +61,68 @@ class AddScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 24, bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Quick Add", style: TextStyle(fontSize: 28, letterSpacing: -0.5, color: AppColors.textMain)),
-                    SizedBox(height: 8),
-                    Text("What would you like to add?", style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              ...actions.map((action) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: GestureDetector(
-                      onTap: action['action'] as VoidCallback,
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.grey.shade100, width: 1),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
-                        ),
-                        child: Row(
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 24, bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 56, height: 56,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: action['colors'] as List<Color>),
-                                borderRadius: BorderRadius.circular(18),
-                                boxShadow: [BoxShadow(color: (action['colors'] as List<Color>).first.withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 2))],
-                              ),
-                              child: Center(child: Icon(action['icon'] as IconData, color: Colors.white, size: 28)),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(action['title'] as String, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textMain)),
-                                  const SizedBox(height: 4),
-                                  Text(action['desc'] as String, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                                ],
-                              ),
-                            ),
-                            const Icon(LucideIcons.chevronRight, color: AppColors.textTertiary, size: 20),
+                            Text("Quick Add", style: TextStyle(fontSize: 28, letterSpacing: -0.5, fontWeight: FontWeight.bold, color: AppColors.textMain)),
+                            SizedBox(height: 8),
+                            Text("What would you like to add?", style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
                           ],
                         ),
                       ),
-                    ),
-                  )),
-              const Spacer(),
+                      const SizedBox(height: 20),
+                      ...actions.map((action) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GestureDetector(
+                              onTap: action['action'] as VoidCallback,
+                              child: Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(color: Colors.grey.shade100, width: 1),
+                                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 56, height: 56,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: action['colors'] as List<Color>),
+                                        borderRadius: BorderRadius.circular(18),
+                                        boxShadow: [BoxShadow(color: (action['colors'] as List<Color>).first.withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 2))],
+                                      ),
+                                      child: Center(child: Icon(action['icon'] as IconData, color: Colors.white, size: 28)),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(action['title'] as String, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textMain)),
+                                          const SizedBox(height: 4),
+                                          Text(action['desc'] as String, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(LucideIcons.chevronRight, color: AppColors.textTertiary, size: 20),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: TextButton(

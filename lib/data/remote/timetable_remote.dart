@@ -10,22 +10,37 @@ class TimetableRemote {
     return _firestore
         .userCollection(userId, 'timetable')
         .orderBy('dayOfWeek')
-        .orderBy('startMinutes')
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => TimetableModel.fromDoc(doc.id, doc.data()))
-            .toList());
+        .map((snap) {
+          final items = snap.docs
+              .map((doc) => TimetableModel.fromDoc(doc.id, doc.data()))
+              .toList();
+          // Sort by startMinutes in Dart to avoid complex Firestore indexes
+          items.sort((a, b) {
+            final dayComp = a.dayOfWeek.compareTo(b.dayOfWeek);
+            if (dayComp != 0) return dayComp;
+            return a.startMinutes.compareTo(b.startMinutes);
+          });
+          return items;
+        });
   }
 
   Future<List<TimetableModel>> getAll(String userId) async {
     final snap = await _firestore
         .userCollection(userId, 'timetable')
         .orderBy('dayOfWeek')
-        .orderBy('startMinutes')
         .get();
-    return snap.docs
+    final items = snap.docs
         .map((doc) => TimetableModel.fromDoc(doc.id, doc.data()))
         .toList();
+    
+    items.sort((a, b) {
+      final dayComp = a.dayOfWeek.compareTo(b.dayOfWeek);
+      if (dayComp != 0) return dayComp;
+      return a.startMinutes.compareTo(b.startMinutes);
+    });
+    
+    return items;
   }
 
   Future<List<TimetableModel>> getByDay(String userId, int day) async {

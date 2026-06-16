@@ -19,3 +19,17 @@ final overallAttendanceProvider = Provider.autoDispose<double>((ref) {
   final attended = data.fold(0, (sum, a) => sum + a.attendedClasses);
   return total > 0 ? attended / total : 0.0;
 });
+
+/// Today's timetable-slot marks: slotId -> true(present) / false(absent)
+final slotAttendanceMarksTodayProvider =
+    FutureProvider.autoDispose<Map<String, bool>>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return const {};
+
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  return ref.watch(attendanceRepoProvider).getSlotMarksForDate(
+        userId: userId,
+        date: today,
+      );
+});

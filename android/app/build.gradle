@@ -5,14 +5,22 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Load release signing config from android/key.properties if present.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.unimatex.app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = "25.1.8937393"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -22,7 +30,7 @@ android {
     defaultConfig {
         applicationId = "com.unimatex.app"
         minSdk = 24
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled true
@@ -30,18 +38,20 @@ android {
 
     signingConfigs {
         release {
-            // TODO: Add your keystore for Play Store release:
-            // storeFile file('your-release-key.jks')
-            // storePassword 'your-password'
-            // keyAlias 'your-alias'
-            // keyPassword 'your-password'
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                storePassword keystoreProperties['storePassword']
+            }
         }
     }
 
     buildTypes {
         release {
-            // For now, use debug signing. Replace with release config above for Play Store.
-            signingConfig = signingConfigs.debug
+            // Uses your real keystore when android/key.properties exists,
+            // otherwise falls back to debug signing for local dev builds.
+            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -54,4 +64,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }

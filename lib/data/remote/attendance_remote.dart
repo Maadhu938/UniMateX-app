@@ -67,6 +67,35 @@ class AttendanceRemote {
     await _firestore.userDoc(userId, 'attendance', subjectId).delete();
   }
 
+  /// Update subject settings
+  Future<void> updateSubjectSettings({
+    required String userId,
+    required String subjectId,
+    double? targetPercentage,
+    int? totalClassesInSemester,
+    bool clearSemesterTotal = false,
+  }) async {
+    final data = <String, dynamic>{
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (targetPercentage != null) data['targetPercentage'] = targetPercentage;
+    if (totalClassesInSemester != null) data['totalClassesInSemester'] = totalClassesInSemester;
+    if (clearSemesterTotal) data['totalClassesInSemester'] = FieldValue.delete();
+
+    await _firestore.userDoc(userId, 'attendance', subjectId).update(data);
+  }
+
+  /// Mark a specific slot
+  Future<void> markSlot({
+    required String userId,
+    required String slotId,
+    required String subjectId,
+    required bool attended,
+  }) async {
+    // For cloud version, we'll keep it simple by updating the subject totals
+    await markClass(userId: userId, subjectId: subjectId, attended: attended);
+  }
+
   /// Update the dashboard summary doc
   Future<void> updateSummary(String userId, double overallPct) async {
     await _firestore.instance.doc('users/$userId/stats/summary').set({

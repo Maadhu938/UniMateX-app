@@ -1,5 +1,5 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
@@ -40,35 +40,38 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
   Widget _buildContent(BuildContext context) {
     final items = ref.watch(assignmentsByStatusProvider(activeTab));
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 80),
+    return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Assignments", style: TextStyle(fontSize: 28, letterSpacing: -0.5, color: AppColors.textMain)),
-                SizedBox(height: 8),
-                Text("Track your tasks and deadlines", style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
-              ],
-            ),
-            IconButton.filled(
-              onPressed: () => QuickAddDialogs.showAddTaskDialog(context, ref),
-              icon: const Icon(LucideIcons.plus),
-              style: IconButton.styleFrom(
-                backgroundColor: AppColors.primary.withOpacity(0.1),
-                foregroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Assignments", style: TextStyle(fontSize: 28, letterSpacing: -0.5, fontWeight: FontWeight.bold, color: AppColors.textMain)),
+                      SizedBox(height: 8),
+                      Text("Track your tasks and deadlines", style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                  IconButton.filled(
+                    onPressed: () => QuickAddDialogs.showAddTaskDialog(context, ref),
+                    icon: const Icon(LucideIcons.plus),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      foregroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        
-        // Custom Tabs
-        Container(
+              const SizedBox(height: 20),
+
+              // Custom Tabs
+              Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -105,21 +108,27 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
           ),
         ),
         
+            ],
+          ),
+        ),
         const SizedBox(height: 20),
-        
-        if (items.isEmpty)
-          EmptyState(
-            icon: LucideIcons.fileText,
-            title: "No assignments found",
-            description: "You're all caught up! Or you can add a new task to stay organized.",
-            actionLabel: "Add Assignment",
-            onAction: () => QuickAddDialogs.showAddTaskDialog(context, ref),
-          )
-        else
-          ...items.map((item) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildAssignmentCard(item),
-          )),
+        Expanded(
+          child: items.isEmpty
+            ? EmptyState(
+                icon: LucideIcons.listTodo,
+                title: "No assignments found",
+                description: "You're all caught up! Or you can add a new task to stay organized.",
+                actionLabel: "Add Assignment",
+                onAction: () => QuickAddDialogs.showAddTaskDialog(context, ref),
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+                children: items.map((item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildAssignmentCard(item),
+                )).toList(),
+              ),
+        ),
       ],
     );
   }
@@ -135,10 +144,10 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     Color borderCol = AppColors.primary.withOpacity(0.2);
     IconData? badgeIcon;
 
-    if (!isCompleted && item.dueDate != null) {
+    if (!isCompleted) {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      final due = DateTime(item.dueDate!.year, item.dueDate!.month, item.dueDate!.day);
+      final due = DateTime(item.dueDate.year, item.dueDate.month, item.dueDate.day);
       final diffDays = due.difference(today).inDays;
 
       if (diffDays == 0) {
@@ -170,6 +179,23 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
     return Dismissible(
       key: ValueKey(item.id),
       direction: DismissDirection.endToStart,
+      confirmDismiss: (direction) async {
+        return await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Delete Task?'),
+            content: Text('Are you sure you want to delete "${item.title}"?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true), 
+                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+      },
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
@@ -177,6 +203,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
         child: const Icon(LucideIcons.trash2, color: AppColors.danger),
       ),
       onDismissed: (_) {
+        HapticFeedback.mediumImpact();
         final uid = ref.read(currentUserIdProvider);
         if (uid != null) ref.read(assignmentRepoProvider).deleteAssignment(userId: uid, assignmentId: item.id);
       },
@@ -224,9 +251,9 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                       child: Container(
                         width: 32, height: 32,
                         decoration: BoxDecoration(
-                          gradient: isCompleted 
-                            ? LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.green400, AppColors.emerald500])
-                            : null,
+                         gradient: isCompleted 
+                             ? const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.green400, AppColors.emerald500])
+                             : null,
                           color: isCompleted ? null : Colors.white,
                           shape: BoxShape.circle,
                           border: Border.all(color: isCompleted ? Colors.transparent : Colors.grey.shade300, width: 2),
@@ -259,7 +286,7 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
                           const Icon(LucideIcons.calendar, color: AppColors.textSecondary, size: 14),
                           const SizedBox(width: 6),
                           Text(
-                            item.dueDate != null ? DateFormat('MMM d').format(item.dueDate!) : 'No date',
+                            DateFormat('MMM d').format(item.dueDate),
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary),
                           ),
                         ],
@@ -306,4 +333,3 @@ class _AssignmentsScreenState extends ConsumerState<AssignmentsScreen> {
       userId: uid, assignmentId: item.id, status: item.isPending ? 'completed' : 'pending');
   }
 }
-

@@ -16,6 +16,8 @@ class AttendanceLocal {
         'subjectCode': item.subjectCode,
         'totalClasses': item.totalClasses,
         'attendedClasses': item.attendedClasses,
+        'targetPercentage': item.targetPercentage,
+        'totalClassesInSemester': item.totalClassesInSemester,
         'createdAt': item.createdAt.toIso8601String(),
         'updatedAt': item.updatedAt.toIso8601String(),
       };
@@ -34,6 +36,8 @@ class AttendanceLocal {
         subjectCode: data['subjectCode'] ?? '',
         totalClasses: data['totalClasses'] ?? 0,
         attendedClasses: data['attendedClasses'] ?? 0,
+        targetPercentage: (data['targetPercentage'] ?? 0.75).toDouble(),
+        totalClassesInSemester: data['totalClassesInSemester'] as int?,
         createdAt: DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now(),
         updatedAt: DateTime.tryParse(data['updatedAt'] ?? '') ?? DateTime.now(),
       );

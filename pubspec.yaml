@@ -13,8 +13,9 @@ dependencies:
   google_fonts: ^6.3.0
   lucide_icons: ^0.257.0
   intl: ^0.20.2
+  package_info_plus: ^8.0.0
   percent_indicator: ^4.2.5
-
+  image_picker: ^1.1.2
   # Firebase
   firebase_core: ^3.8.0
   firebase_auth: ^5.3.4
@@ -31,6 +32,12 @@ dependencies:
 
   # Navigation
   go_router: ^14.8.0
+  flutter_local_notifications: ^19.5.0
+
+  # Timezone support for notifications
+  timezone: ^0.10.1
+  flutter_timezone: ^4.1.1
+  flutter_markdown: ^0.7.7+1
 
 dev_dependencies:
   flutter_test:
@@ -38,17 +45,26 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.4.1
+  image: ^4.0.0
 
-flutter_icons:
+flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.jpeg"
+  image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#029782"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
 
 flutter_native_splash:
-  color: "#ffffff"
-  image: "assets/images/logo.jpeg"
+  color: "#029782"
+  image: "assets/images/app_icon.png"
+  android_12:
+    color: "#029782"
+    image: "assets/images/splash_android12.png"
   android: true
   ios: true
+  web: false
 
 flutter:
   uses-material-design: true

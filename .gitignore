@@ -10,6 +10,8 @@ logcat*.txt
 .history
 .svn/
 migrate_working_dir/
+.analyze_output.txt
+flutter_*.log
 
 # IntelliJ related
 *.iml
@@ -116,6 +118,14 @@ key.properties
 **/google-services.json
 **/GoogleService-Info.plist
 **/firebase_options.dart
+
+# Environment / secrets
+.env
+.env.*
+*.secret
+
+# Store listing assets (large binaries, optional)
+store/
 
 # iOS / XCode
 **/ios/**/*.mode1v3

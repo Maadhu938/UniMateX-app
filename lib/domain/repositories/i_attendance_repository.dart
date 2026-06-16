@@ -15,11 +15,34 @@ abstract class IAttendanceRepository {
     required bool attended,
   });
 
+  /// Mark attendance for a timetable slot on a specific date
+  Future<void> markSlot({
+    required String userId,
+    required String slotId,
+    required bool attended,
+    DateTime? date,
+  });
+
+  /// Returns marked slots for a date: slotId -> true(present) / false(absent)
+  Future<Map<String, bool>> getSlotMarksForDate({
+    required String userId,
+    required DateTime date,
+  });
+
   /// Add a new subject to track attendance
   Future<void> addSubject({
     required String userId,
     required String subject,
     required String subjectCode,
+  });
+
+  /// Update subject-level attendance settings.
+  Future<void> updateSubjectSettings({
+    required String userId,
+    required String subjectId,
+    double? targetPercentage,
+    int? totalClassesInSemester,
+    bool clearSemesterTotal = false,
   });
 
   /// Delete a subject's attendance record

@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../data/local/hive_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -89,11 +91,88 @@ Future<UserCredential> registerWithEmail({
     await _googleSignIn.signOut();
   }
 
-  /// Delete account
+  /// Delete account and all associated data.
+  ///
+  /// Order matters: Firestore data must be removed while the user is still
+  /// authenticated (security rules require it), then the auth account is
+  /// deleted. If the session is too old, Firebase requires a recent login;
+  /// we re-authenticate Google users automatically and ask email users to
+  /// sign in again.
   Future<void> deleteAccount() async {
     final user = _auth.currentUser;
-    if (user != null) {
-      await user.delete();
+    if (user == null) return;
+    final uid = user.uid;
+    final db = FirebaseFirestore.instance;
+
+    try {
+      // 1. Delete Firestore data (batched for efficiency).
+      const collections = ['attendance', 'timetable', 'notes', 'assignments', 'stats'];
+      for (final collection in collections) {
+        final snap = await db.collection('users').doc(uid).collection(collection).get();
+        var batch = db.batch();
+        var count = 0;
+        for (final doc in snap.docs) {
+          batch.delete(doc.reference);
+          count++;
+          if (count % 400 == 0) {
+            await batch.commit();
+            batch = db.batch();
+          }
+        }
+        await batch.commit();
+      }
+      await db.collection('users').doc(uid).delete();
+
+      // 2. Delete the auth account, re-authenticating if required.
+      try {
+        await user.delete();
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'requires-recent-login') {
+          final reauthed = await _reauthenticate(user);
+          if (reauthed) {
+            await user.delete();
+          } else {
+            throw FirebaseAuthException(
+              code: 'requires-recent-login',
+              message: 'For your security, please log out and sign in again, then delete your account.',
+            );
+          }
+        } else {
+          rethrow;
+        }
+      }
+
+      // 3. Clear local cache and Google session.
+      await HiveService.clearAll();
+      await _googleSignIn.signOut();
+    } on FirebaseAuthException {
+      rethrow;
+    } catch (e) {
+      throw FirebaseAuthException(
+        code: 'ERROR',
+        message: 'Failed to delete account: $e',
+      );
+    }
+  }
+
+  /// Re-authenticates the current user. Google users are re-authenticated
+  /// silently; returns false for providers we can't refresh here (e.g. email).
+  Future<bool> _reauthenticate(User user) async {
+    try {
+      final isGoogle = user.providerData.any((p) => p.providerId == 'google.com');
+      if (!isGoogle) return false;
+
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return false;
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      await user.reauthenticateWithCredential(credential);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

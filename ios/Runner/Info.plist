@@ -47,5 +47,11 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSCameraUsageDescription</key>
+		<string>UniMateX uses camera to scan your timetable.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>UniMateX accesses photos to import timetable images.</string>
+		<key>NSPhotoLibraryAddUsageDescription</key>
+		<string>UniMateX may save processed timetable images when needed.</string>
 	</dict>
 </plist>

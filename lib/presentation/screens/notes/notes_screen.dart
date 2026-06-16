@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -30,7 +31,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -40,9 +41,9 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("Notes", style: TextStyle(fontSize: 28, letterSpacing: -0.5, color: AppColors.textMain)),
+                        Text("Notes", style: TextStyle(fontSize: 28, letterSpacing: -0.5, fontWeight: FontWeight.bold, color: AppColors.textMain)),
                         SizedBox(height: 8),
-                        Text("Your study materials", style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
+                        Text("Quick Notes", style: TextStyle(fontSize: 15, color: AppColors.textSecondary)),
                       ],
                     ),
                     IconButton.filled(
@@ -56,30 +57,26 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     ),
                   ],
                 ),
-                ],
-              ),
-            ),
-            
-            // Search Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.grey.shade200),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2))],
-                ),
-                child: TextField(
-                  onChanged: (val) => setState(() => searchQuery = val),
-                  decoration: const InputDecoration(
-                    hintText: "Search notes...",
-                    hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 15),
-                    prefixIcon: Icon(LucideIcons.search, color: AppColors.textTertiary, size: 20),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 14),
+                const SizedBox(height: 14),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.grey.shade200),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2))],
+                  ),
+                  child: TextField(
+                    onChanged: (val) => setState(() => searchQuery = val),
+                    decoration: const InputDecoration(
+                      hintText: "Search notes...",
+                      hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 15),
+                      prefixIcon: Icon(LucideIcons.search, color: AppColors.textTertiary, size: 20),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 14),
+                    ),
                   ),
                 ),
+                ],
               ),
             ),
             
@@ -96,14 +93,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       title: searchQuery.isEmpty ? "No notes yet" : "No matches found",
                       description: searchQuery.isEmpty 
                         ? "Capture your thoughts, lecture highlights, and ideas." 
-                        : "We couldn't find any notes matching '\$searchQuery'.",
+                        : "We couldn't find any notes matching '$searchQuery'.",
                       actionLabel: searchQuery.isEmpty ? "Add Note" : null,
                       onAction: searchQuery.isEmpty ? () => _openEditor(context, ref) : null,
                     );
                   }
                   
                   return ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                     children: filtered.map((note) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _buildNoteCard(note),
@@ -137,12 +134,30 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     return Dismissible(
       key: ValueKey(note.id),
       direction: DismissDirection.endToStart,
+      confirmDismiss: (direction) async {
+        return await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Delete Note?'),
+            content: Text('Are you sure you want to delete "${note.title.isNotEmpty ? note.title : 'this note'}"?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true), 
+                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+      },
       background: Container(
         alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 24),
         decoration: BoxDecoration(color: AppColors.danger.withOpacity(0.1), borderRadius: BorderRadius.circular(24)),
         child: const Icon(LucideIcons.trash2, color: AppColors.danger),
       ),
       onDismissed: (_) {
+        HapticFeedback.mediumImpact();
         final uid = ref.read(currentUserIdProvider);
         if (uid != null) ref.read(notesRepoProvider).deleteNote(userId: uid, noteId: note.id);
       },
@@ -281,12 +296,16 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
             onPressed: () { if (_hasChanges) _saveNote(); context.pop(); },
             icon: const Icon(LucideIcons.chevronLeft),
           ),
-          actions: [
-            IconButton(
-              onPressed: () async { await _saveNote(); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved!'))); },
-              icon: const Icon(LucideIcons.save),
-            ),
-          ],
+           actions: [
+             IconButton(
+               onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  await _saveNote();
+                  messenger.showSnackBar(const SnackBar(content: Text('Saved!'), duration: Duration(seconds: 1)));
+               },
+               icon: const Icon(LucideIcons.save),
+             ),
+           ],
         ),
         body: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
