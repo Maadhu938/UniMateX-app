@@ -10,7 +10,6 @@ import '../providers/auth_provider.dart';
 import '../providers/attendance_provider.dart';
 import '../providers/repository_providers.dart';
 import '../providers/settings_provider.dart';
-import '../../core/services/notification_service.dart';
 
 class QuickAddDialogs {
   static void _showSwipeTipIfNeeded(BuildContext context, WidgetRef ref) async {
@@ -321,15 +320,6 @@ class QuickAddDialogs {
                     if (initialTask == null) {
                       ref.read(assignmentRepoProvider).addAssignment(userId: uid, assignment: task);
                       _showSwipeTipIfNeeded(context, ref);
-                      // Schedule notification 1 day before
-                      final notifyTime = due.subtract(const Duration(days: 1));
-                      if (notifyTime.isAfter(DateTime.now())) {
-                        NotificationService().scheduleClassReminder(
-                          title: "Task Due Tomorrow!",
-                          body: "${task.title} is due tomorrow.",
-                          scheduledTime: notifyTime,
-                        );
-                      }
                     } else {
                       ref.read(assignmentRepoProvider).updateAssignment(userId: uid, assignment: task);
                     }

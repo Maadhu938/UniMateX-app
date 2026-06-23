@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../auth/policy_screen.dart';
 import '../../../core/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/repository_providers.dart';
 import '../../providers/settings_provider.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/services/notification_service.dart';
@@ -297,6 +298,9 @@ class ProfileScreen extends ConsumerWidget {
                           content: Text('Notifications are blocked. Enable them in Settings > Apps > UniMateX > Notifications.'),
                           behavior: SnackBarBehavior.floating,
                         ));
+                      } else {
+                        // Re-schedule reminders for all existing classes + assignments.
+                        await _rescheduleAll(ref);
                       }
                     } else {
                       await NotificationService().cancelAllNotifications();
@@ -329,6 +333,38 @@ class ProfileScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  /// Re-schedule notifications for all existing timetable classes and pending assignments.
+  Future<void> _rescheduleAll(WidgetRef ref) async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return;
+    final service = NotificationService();
+
+    // Timetable class reminders
+    final timetable = await ref.read(timetableRepoProvider).getOfflineFirst(userId);
+    for (final slot in timetable) {
+      await service.scheduleWeeklyClassReminder(
+        className: slot.subject,
+        room: slot.room,
+        dayOfWeek: slot.dayOfWeek,
+        startMinutes: slot.startMinutes,
+      );
+    }
+
+    // Assignment due-date reminders
+    final assignments = await ref.read(assignmentRepoProvider).getByStatus(userId, 'pending');
+    for (final a in assignments) {
+      final reminderTime = DateTime(a.dueDate.year, a.dueDate.month, a.dueDate.day - 1, 20, 0);
+      if (reminderTime.isAfter(DateTime.now())) {
+        await service.scheduleClassReminder(
+          title: 'Assignment due tomorrow',
+          body: a.title,
+          scheduledTime: reminderTime,
+          id: a.id.hashCode.abs().remainder(90000) + 10000,
+        );
+      }
+    }
   }
 
   String get _realHelpContent => """

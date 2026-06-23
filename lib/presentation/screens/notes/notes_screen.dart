@@ -119,18 +119,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   }
 
   Widget _buildNoteCard(NoteModel note) {
-    // Derive color dynamically
-    final colors = [
-      {'text': AppColors.blue700, 'bg1': AppColors.blue50, 'bg2': AppColors.blue100, 'border': AppColors.blue200},
-      {'text': AppColors.green700, 'bg1': AppColors.green50, 'bg2': AppColors.emerald50, 'border': AppColors.green200},
-      {'text': AppColors.purple700, 'bg1': AppColors.purple50, 'bg2': AppColors.violet50, 'border': AppColors.purple200},
-      {'text': AppColors.orange700, 'bg1': AppColors.orange50, 'bg2': AppColors.orange200, 'border': AppColors.orange200},
-      {'text': AppColors.pink700, 'bg1': AppColors.pink50, 'bg2': AppColors.pink200, 'border': AppColors.pink200},
-    ];
-    
-    final colorIdx = note.id.hashCode.abs() % colors.length;
-    final theme = colors[colorIdx];
-
     return Dismissible(
       key: ValueKey(note.id),
       direction: DismissDirection.endToStart,
@@ -188,29 +176,11 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [theme['bg1']!, theme['bg2']!]),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: theme['border']!),
-                    ),
-                    child: Text("General", style: TextStyle(color: theme['text'], fontSize: 11, fontWeight: FontWeight.w500)),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(LucideIcons.clock, size: 12, color: AppColors.textTertiary),
-                        const SizedBox(width: 6),
-                        Text(
-                          DateFormat('MMM d').format(note.updatedAt),
-                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
+                  const Icon(LucideIcons.clock, size: 12, color: AppColors.textTertiary),
+                  const SizedBox(width: 6),
+                  Text(
+                    DateFormat('MMM d').format(note.updatedAt),
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                   ),
                 ],
               ),

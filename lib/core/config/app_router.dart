@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -187,17 +188,28 @@ class _MainShellState extends ConsumerState<_MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: false,
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: _onPageChanged,
-        children: const [
-          _KeepAlivePage(child: HomeScreen()),
-          _KeepAlivePage(child: AttendanceScreen()),
-          _KeepAlivePage(child: TimetableScreen()),
-          _KeepAlivePage(child: AssignmentsScreen()),
-          _KeepAlivePage(child: NotesScreen()),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // If not on Home tab, go to Home. If on Home, exit the app.
+        if (_index != 0) {
+          _onTabTapped(0);
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        extendBody: false,
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: _onPageChanged,
+          children: const [
+            _KeepAlivePage(child: HomeScreen()),
+            _KeepAlivePage(child: AttendanceScreen()),
+            _KeepAlivePage(child: TimetableScreen()),
+            _KeepAlivePage(child: AssignmentsScreen()),
+            _KeepAlivePage(child: NotesScreen()),
         ],
       ),
       floatingActionButton: _index == 0 ? FloatingActionButton(
@@ -269,7 +281,8 @@ class _MainShellState extends ConsumerState<_MainShell> {
           }),
         ),
       ),
-    );
+      ),  // closes Scaffold
+    );   // closes PopScope
   }
 }
 

@@ -266,6 +266,30 @@ class NotificationService {
     await _notificationsPlugin.cancelAll();
   }
 
+  /// Fire an immediate notification (no scheduling) to confirm the pipeline works.
+  Future<void> showNow({
+    required String title,
+    required String body,
+    int? id,
+  }) async {
+    await init();
+    final notificationId = id ?? DateTime.now().millisecondsSinceEpoch.remainder(100000);
+    const androidDetails = AndroidNotificationDetails(
+      _weeklyChannelId,
+      _weeklyChannelName,
+      channelDescription: 'Reminders 15 minutes before your classes start',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const darwinDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    const details = NotificationDetails(android: androidDetails, iOS: darwinDetails);
+    await _notificationsPlugin.show(notificationId, title, body, details);
+  }
+
   /// Whether the OS currently allows this app to post notifications.
   Future<bool> areNotificationsEnabled() async {
     if (defaultTargetPlatform == TargetPlatform.android) {

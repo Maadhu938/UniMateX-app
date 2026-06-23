@@ -30,8 +30,8 @@ class TimetableRepositoryRemoteImpl implements ITimetableRepository {
     required TimetableModel slot,
   }) async {
     await _remote.addSlot(userId: userId, slot: slot);
-    
-    // Schedule notification
+
+    // Schedule recurring weekly notification (15 min before class)
     await _notifications.scheduleWeeklyClassReminder(
       className: slot.subject,
       room: slot.room,
@@ -61,6 +61,17 @@ class TimetableRepositoryRemoteImpl implements ITimetableRepository {
     required String userId,
     required String slotId,
   }) async {
+    // Cancel the notification for this slot before deleting.
+    // The notification ID is derived from dayOfWeek * 10000 + startMinutes,
+    // but we don't have the slot data here. Fetch it first.
+    try {
+      final slots = await _remote.getAll(userId);
+      final slot = slots.where((s) => s.id == slotId).firstOrNull;
+      if (slot != null) {
+        final notifId = slot.dayOfWeek * 10000 + slot.startMinutes;
+        await _notifications.cancelNotification(notifId);
+      }
+    } catch (_) {}
     await _remote.deleteSlot(userId: userId, slotId: slotId);
   }
 }
